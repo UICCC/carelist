@@ -3,6 +3,7 @@ import AdmissionsPage from "./pages/AdmissionsPage";
 import PatientsPage from "./pages/PatientsPage";
 import DoctorsPage from "./pages/DoctorsPage";
 import HospitalPage from "./pages/HospitalPage"
+import ConditionsPage from "./pages/ConditionPage";
 function App() {
   return (
     <BrowserRouter>
@@ -13,6 +14,7 @@ function App() {
         <Link to="/patients" className="hover:text-gray-200 transition">Patients</Link>
         <Link to="/doctors" className="hover:text-gray-200 transition">Doctors</Link>
         <Link to="/hospitals" className="hover:text-gray-200 transition">Hospitals</Link>
+        <Link to="/conditions" className="hover:text-gray-200 transition">Conditions</Link>
       </nav>
 
       {/* ROUTES */}
@@ -24,6 +26,7 @@ function App() {
           <Route path="/patients" element={<PatientsPage />} />
           <Route path="/doctors" element={<DoctorsPage />} />
           <Route path="/hospitals" element={<HospitalPage />} />
+          <Route path="/conditions" element={<ConditionsPage />} />
           
         </Routes>
       </div>

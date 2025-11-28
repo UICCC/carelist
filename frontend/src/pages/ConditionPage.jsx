@@ -1,98 +1,97 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:3000/hospitals";
+const API = "http://localhost:3000/conditions";
 
-export default function HospitalsPage() {
-  const [hospitals, setHospitals] = useState([]);
-  const [editingId, setEditingId] = useState(null); // HospitalID for editing
+export default function ConditionsPage() {
+  const [conditions, setConditions] = useState([]);
+  const [editingId, setEditingId] = useState(null); // ConditionID for editing
 
   const [formData, setFormData] = useState({
-    Name: "",
-    Address: "",
-    ContactNumber: ""
+    ConditionName: "",
+    Description: "",
+    Severity: ""
   });
 
   const [errors, setErrors] = useState({});
 
   // ------------------------ FETCH ------------------------
-  const fetchHospitals = async () => {
+  const fetchConditions = async () => {
     try {
       const res = await axios.get(API);
-      setHospitals(res.data || []);
+      setConditions(res.data || []);
     } catch (err) {
-      console.error("Fetch hospitals error:", err);
+      console.error("Fetch conditions error:", err);
     }
   };
 
   useEffect(() => {
-    fetchHospitals();
+    fetchConditions();
   }, []);
 
   // ---------------------- VALIDATION ---------------------
   const validateForm = () => {
     const errs = {};
-    if (!formData.Name.trim()) errs.Name = "Hospital name is required";
-    if (!formData.Address.trim()) errs.Address = "Address is required";
-    if (formData.ContactNumber && !/^\+?\d{7,15}$/.test(formData.ContactNumber))
-      errs.ContactNumber = "Contact number must be valid";
+    if (!formData.ConditionName.trim()) errs.ConditionName = "Condition name is required";
+    if (!formData.Description.trim()) errs.Description = "Description is required";
+    if (!formData.Severity.trim()) errs.Severity = "Severity is required";
 
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   // ------------------------ CREATE -----------------------
-  const createHospital = async (e) => {
+  const createCondition = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     try {
       await axios.post(API, formData);
       resetForm();
-      fetchHospitals();
+      fetchConditions();
     } catch (err) {
       console.error("Create error:", err);
-      alert("Failed to create hospital");
+      alert("Failed to create condition");
     }
   };
 
   // ----------------------- START EDIT --------------------
-  const startEdit = (hospital) => {
-    setEditingId(hospital.HospitalID); // Use HospitalID
+  const startEdit = (condition) => {
+    setEditingId(condition.ConditionID); // Use ConditionID
     setFormData({
-      Name: hospital.Name || "",
-      Address: hospital.Address || "",
-      ContactNumber: hospital.ContactNumber || ""
+      ConditionName: condition.ConditionName || "",
+      Description: condition.Description || "",
+      Severity: condition.Severity || ""
     });
     setErrors({});
   };
 
   // ------------------------ UPDATE ------------------------
-  const updateHospital = async (e) => {
+  const updateCondition = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     try {
       await axios.put(`${API}/${editingId}`, formData);
       resetForm();
-      fetchHospitals();
+      fetchConditions();
     } catch (err) {
       console.error("Update error:", err);
-      alert("Failed to update hospital");
+      alert("Failed to update condition");
     }
   };
 
   // ------------------------ DELETE ------------------------
-  const deleteHospital = async (HospitalID) => {
-    if (!window.confirm("Delete this hospital?")) return;
+  const deleteCondition = async (ConditionID) => {
+    if (!window.confirm("Delete this condition?")) return;
 
     try {
-      await axios.delete(`${API}/${HospitalID}`);
-      if (editingId === HospitalID) resetForm();
-      fetchHospitals();
+      await axios.delete(`${API}/${ConditionID}`);
+      if (editingId === ConditionID) resetForm();
+      fetchConditions();
     } catch (err) {
       console.error("Delete error:", err);
-      alert("Failed to delete hospital");
+      alert("Failed to delete condition");
     }
   };
 
@@ -100,9 +99,9 @@ export default function HospitalsPage() {
   const resetForm = () => {
     setEditingId(null);
     setFormData({
-      Name: "",
-      Address: "",
-      ContactNumber: ""
+      ConditionName: "",
+      Description: "",
+      Severity: ""
     });
     setErrors({});
   };
@@ -110,22 +109,22 @@ export default function HospitalsPage() {
   // ------------------------ UI ----------------------------
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="text-4xl font-bold mb-6 text-gray-800">Hospitals Dashboard</h1>
+      <h1 className="text-4xl font-bold mb-6 text-gray-800">Conditions Dashboard</h1>
 
       {/* FORM */}
       <div className="bg-white shadow-md rounded-lg p-6 mb-10">
         <h2 className="text-2xl font-semibold mb-4">
-          {editingId ? "Update Hospital" : "Add New Hospital"}
+          {editingId ? "Update Condition" : "Add New Condition"}
         </h2>
 
         <form
-          onSubmit={editingId ? updateHospital : createHospital}
+          onSubmit={editingId ? updateCondition : createCondition}
           className="grid grid-cols-1 md:grid-cols-2 gap-4"
         >
-          {["Name", "Address", "ContactNumber"].map((field) => (
+          {["ConditionName", "Description", "Severity"].map((field) => (
             <div key={field}>
               <input
-                type={field === "ContactNumber" ? "tel" : "text"}
+                type="text"
                 placeholder={field}
                 name={field}
                 value={formData[field]}
@@ -135,7 +134,7 @@ export default function HospitalsPage() {
                     ? "border-red-500 focus:ring-red-500"
                     : "border-gray-300 focus:ring-blue-500"
                 }`}
-                required={["Name", "Address"].includes(field)}
+                required
               />
               {errors[field] && (
                 <p className="text-red-500 text-xs">{errors[field]}</p>
@@ -149,7 +148,7 @@ export default function HospitalsPage() {
               editingId ? "bg-yellow-600" : "bg-blue-600"
             }`}
           >
-            {editingId ? "Update Hospital" : "Add Hospital"}
+            {editingId ? "Update Condition" : "Add Condition"}
           </button>
 
           {editingId && (
@@ -169,7 +168,7 @@ export default function HospitalsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-blue-50">
             <tr>
-              {["Name", "Address", "Contact Number", "Actions"].map((col) => (
+              {["Condition Name", "Description", "Severity", "Actions"].map((col) => (
                 <th
                   key={col}
                   className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase"
@@ -181,29 +180,29 @@ export default function HospitalsPage() {
           </thead>
 
           <tbody className="divide-y divide-gray-200">
-            {hospitals.length === 0 ? (
+            {conditions.length === 0 ? (
               <tr>
                 <td colSpan={4} className="text-center py-4 text-gray-500">
-                  No hospitals found.
+                  No conditions found.
                 </td>
               </tr>
             ) : (
-              hospitals.map((h) => (
-                <tr key={h.HospitalID} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">{h.Name}</td>
-                  <td className="px-6 py-4">{h.Address}</td>
-                  <td className="px-6 py-4">{h.ContactNumber}</td>
+              conditions.map((c) => (
+                <tr key={c.ConditionID} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">{c.ConditionName}</td>
+                  <td className="px-6 py-4">{c.Description}</td>
+                  <td className="px-6 py-4">{c.Severity}</td>
 
                   <td className="px-6 py-4 flex gap-2">
                     <button
-                      onClick={() => startEdit(h)}
+                      onClick={() => startEdit(c)}
                       className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
                     >
                       Edit
                     </button>
 
                     <button
-                      onClick={() => deleteHospital(h.HospitalID)}
+                      onClick={() => deleteCondition(c.ConditionID)}
                       className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                     >
                       Delete
