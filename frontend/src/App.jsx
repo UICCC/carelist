@@ -1,16 +1,32 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import AdmissionsPage from "./pages/AdmissionsPage";
 import PatientsPage from "./pages/PatientsPage";
-
+import DoctorsPage from "./pages/DoctorsPage";
+import HospitalPage from "./pages/HospitalPage"
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<h1>Dashboard</h1>} />
+      {/* NAVIGATION BAR */}
+      <nav className="bg-blue-600 text-white px-6 py-3 shadow-md flex gap-6">
+        <Link to="/" className="hover:text-gray-200 transition">Dashboard</Link>
+        <Link to="/admissions" className="hover:text-gray-200 transition">Admissions</Link>
+        <Link to="/patients" className="hover:text-gray-200 transition">Patients</Link>
+        <Link to="/doctors" className="hover:text-gray-200 transition">Doctors</Link>
+        <Link to="/hospitals" className="hover:text-gray-200 transition">Hospitals</Link>
+      </nav>
 
-        <Route path="/admissions" element={<AdmissionsPage />} />
-        <Route path="/patients" element={<PatientsPage />} />
-      </Routes>
+      {/* ROUTES */}
+      <div className="p-6">
+        <Routes>
+          <Route path="/" element={<h1 className="text-2xl font-bold">Dashboard</h1>} />
+
+          <Route path="/admissions" element={<AdmissionsPage />} />
+          <Route path="/patients" element={<PatientsPage />} />
+          <Route path="/doctors" element={<DoctorsPage />} />
+          <Route path="/hospitals" element={<HospitalPage />} />
+          
+        </Routes>
+      </div>
     </BrowserRouter>
   );
 }
