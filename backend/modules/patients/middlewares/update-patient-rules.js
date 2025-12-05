@@ -2,39 +2,34 @@ const { body, param } = require("express-validator");
 
 const updatePatientRules = [
   param("id")
-    .isInt({ gt: 0 }).withMessage("Patient ID must be a positive integer"),
+    .isInt({ min: 1 }).withMessage("Patient ID must be a positive number"),
 
-  body("FirstName")
+  body("FullName")
     .optional()
-    .isAlpha().withMessage("First name must contain only letters"),
+    .isString().withMessage("Full name must be a string")
+    .isLength({ min: 3 }).withMessage("Full name must be at least 3 characters"),
 
-  body("LastName")
+  body("Age")
     .optional()
-    .isAlpha().withMessage("Last name must contain only letters"),
+    .isInt({ min: 0, max: 120 }).withMessage("Age must be a valid number"),
 
-  body("DateOfBirth")
+  body("Condition")
     .optional()
-    .isISO8601().withMessage("Date of birth must be valid"),
+    .isString().withMessage("Condition must be a string"),
+
+  body("PreferredDate")
+    .optional()
+    .isISO8601().withMessage("Preferred date must be valid"),
+
+  body("PreferredTime")
+    .optional()
+    .matches(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    .withMessage("Preferred time must be in HH:MM format"),
 
   body("Gender")
     .optional()
-    .isIn(["Male", "Female", "Other"]).withMessage("Gender must be Male, Female, or Other"),
-
-  body("Address")
-    .optional()
-    .isLength({ min: 5 }).withMessage("Address must be at least 5 characters long"),
-
-  body("Phone")
-    .optional()
-    .isMobilePhone().withMessage("Phone number must be valid"),
-
-  body("Email")
-    .optional()
-    .isEmail().withMessage("Email must be valid"),
-
-  body("InsuranceProviderID")
-    .optional()
-    .isInt({ gt: 0 }).withMessage("Insurance Provider ID must be a positive integer")
+    .isIn(["Male", "Female", "Other"])
+    .withMessage("Gender must be Male, Female, or Other")
 ];
 
 module.exports = updatePatientRules;

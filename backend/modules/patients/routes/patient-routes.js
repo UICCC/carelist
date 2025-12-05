@@ -5,7 +5,7 @@ const createPatientRules = require("../middlewares/create-patient-rules");
 const updatePatientRules = require("../middlewares/update-patient-rules");
 const checkValidation = require("../../../shared/middlewares/check-validation");
 
-// ✅ GET all patients
+// ----------------- GET all patients -----------------
 router.get("/", async (req, res) => {
   try {
     const patients = await Patient.find();
@@ -16,10 +16,10 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ GET patient by ID
+// ----------------- GET patient by PatientID -----------------
 router.get("/:id", async (req, res) => {
   try {
-    const patient = await Patient.findOne({ PatientID: req.params.id });
+    const patient = await Patient.findOne({ PatientID: Number(req.params.id) });
     if (!patient) return res.status(404).json({ error: "Patient not found" });
     res.json(patient);
   } catch (err) {
@@ -28,15 +28,19 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ POST new patient
+// ----------------- POST new patient -----------------
 router.post("/", createPatientRules, checkValidation, async (req, res) => {
   try {
     const lastPatient = await Patient.findOne().sort({ PatientID: -1 });
     const newID = lastPatient ? lastPatient.PatientID + 1 : 1;
 
-    const newPatient = new Patient({ PatientID: newID, ...req.body });
-    await newPatient.save();
+    const newPatient = new Patient({
+      PatientID: newID,
+      status: "Pending", // default status
+      ...req.body
+    });
 
+    await newPatient.save();
     res.status(201).json(newPatient);
   } catch (err) {
     console.error(err);
@@ -44,11 +48,11 @@ router.post("/", createPatientRules, checkValidation, async (req, res) => {
   }
 });
 
-// ✅ PUT update patient
+// ----------------- PUT update patient -----------------
 router.put("/:id", updatePatientRules, checkValidation, async (req, res) => {
   try {
     const updatedPatient = await Patient.findOneAndUpdate(
-      { PatientID: req.params.id },
+      { PatientID: Number(req.params.id) },
       req.body,
       { new: true }
     );
@@ -60,10 +64,33 @@ router.put("/:id", updatePatientRules, checkValidation, async (req, res) => {
   }
 });
 
-// ✅ DELETE patient
+// ----------------- PATCH update status (Accept/Reject) -----------------
+router.patch("/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body; // Must be "Accepted" or "Rejected"
+    if (!["Accepted", "Rejected"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const updatedPatient = await Patient.findOneAndUpdate(
+      { PatientID: Number(req.params.id) }, // Use PatientID, NOT _id
+      { status },
+      { new: true }
+    );
+
+    if (!updatedPatient) return res.status(404).json({ error: "Patient not found" });
+
+    res.json(updatedPatient);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update status" });
+  }
+});
+
+// ----------------- DELETE patient -----------------
 router.delete("/:id", async (req, res) => {
   try {
-    const deletedPatient = await Patient.findOneAndDelete({ PatientID: req.params.id });
+    const deletedPatient = await Patient.findOneAndDelete({ PatientID: Number(req.params.id) });
     if (!deletedPatient) return res.status(404).json({ error: "Patient not found" });
     res.json({ message: "Patient deleted successfully" });
   } catch (err) {

@@ -1,274 +1,540 @@
 import { useEffect, useState } from "react";
+import DashboardLayout from "./DashboardLayout";
 
-const API = "http://localhost:3000/patients";
+const PATIENT_API = "http://localhost:3000/patients";
+const DOCTOR_API = "http://localhost:3000/doctors";
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const patientsPerPage = 5;
 
   const [formData, setFormData] = useState({
-    FirstName: "",
-    LastName: "",
-    DateOfBirth: "",
-    Gender: ""
+    FullName: "",
+    Age: "",
+    Condition: "",
+    PreferredDate: "",
+    PreferredTime: "",
+    Gender: "",
+    Doctor: ""
   });
 
+  const [doctors, setDoctors] = useState([]);
   const [errors, setErrors] = useState({});
+  const [doctorFilter, setDoctorFilter] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]);
 
-  // --- READ: fetch all patients
+  // Pagination calculations
+  const indexOfLastPatient = currentPage * patientsPerPage;
+  const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
+  const currentPatients = patients.slice(indexOfFirstPatient, indexOfLastPatient);
+  const totalPages = Math.ceil(patients.length / patientsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  const getWeekdayName = (dateStr) => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString("en-US", { 
+      weekday: "long",
+      timeZone: "UTC"
+    });
+  };
+
   const fetchPatients = async () => {
     try {
-      const res = await fetch(API);
-      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const res = await fetch(PATIENT_API);
       const data = await res.json();
       setPatients(data || []);
     } catch (err) {
-      console.error("Fetch patients error:", err);
+      console.error("Fetch error:", err);
+    }
+  };
+
+  const fetchDoctors = async () => {
+    try {
+      const res = await fetch(DOCTOR_API);
+      const data = await res.json();
+      setDoctors(data || []);
+    } catch (err) {
+      console.error("Error fetching doctors:", err);
     }
   };
 
   useEffect(() => {
     fetchPatients();
+    fetchDoctors();
   }, []);
 
-  // --- VALIDATION
+  const filteredDoctors = doctors.filter(d =>
+    d.DoctorName.toLowerCase().includes(doctorFilter.toLowerCase()) ||
+    d.Specialty.toLowerCase().includes(doctorFilter.toLowerCase())
+  );
+
+  useEffect(() => {
+    if (!formData.Doctor || !formData.PreferredDate) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    const doctor = doctors.find(d => d._id === formData.Doctor);
+    
+    if (!doctor || !doctor.Availability) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    const weekday = getWeekdayName(formData.PreferredDate);
+    const availability = doctor.Availability.find(av => av.day === weekday);
+
+    if (!availability) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    const slots = [];
+    let [startH, startM] = availability.startTime.split(":").map(Number);
+    let [endH, endM] = availability.endTime.split(":").map(Number);
+
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += 30) {
+      const hour = Math.floor(minutes / 60);
+      const minute = minutes % 60;
+      const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      const displayText = `${weekday} ${time}`;
+      slots.push(displayText);
+    }
+
+    setAvailableSlots(slots);
+  }, [formData.Doctor, formData.PreferredDate, doctors]);
+
   const validateForm = () => {
-    const errs = {};
-
-    if (!formData.FirstName) errs.FirstName = "First name is required";
-    else if (!/^[A-Za-z]+$/.test(formData.FirstName))
-      errs.FirstName = "First name must contain only letters";
-
-    if (!formData.LastName) errs.LastName = "Last name is required";
-    else if (!/^[A-Za-z]+$/.test(formData.LastName))
-      errs.LastName = "Last name must contain only letters";
-
-    if (!formData.DateOfBirth) errs.DateOfBirth = "Date of birth is required";
-
-    if (!["Male", "Female", "Other"].includes(formData.Gender))
-      errs.Gender = "Gender must be Male, Female, or Other";
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    const e = {};
+    if (!formData.FullName.trim()) e.FullName = "Full name is required";
+    if (!formData.Age) e.Age = "Age is required";
+    if (!formData.Condition.trim()) e.Condition = "Condition is required";
+    if (!formData.PreferredDate) e.PreferredDate = "Preferred date is required";
+    if (!formData.PreferredTime) e.PreferredTime = "Preferred time is required";
+    if (!["Male", "Female", "Other"].includes(formData.Gender)) e.Gender = "Select a valid gender";
+    if (!formData.Doctor) e.Doctor = "Please select a doctor";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  // --- CREATE
   const createPatient = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-
     try {
-      const res = await fetch(API, {
+      await fetch(PATIENT_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
-      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
-      await fetchPatients();
+      fetchPatients();
       resetForm();
+      setCurrentPage(1);
     } catch (err) {
       console.error("Create error:", err);
-      alert(err.message);
     }
   };
 
-  // --- PREPARE EDIT
-  const startEdit = (patient) => {
-    setEditingId(patient.PatientID);
-    let dob = patient.DateOfBirth ?? "";
-    if (dob.includes("T")) dob = dob.split("T")[0];
+  const startEdit = (p) => {
+    setEditingId(p.PatientID);
     setFormData({
-      FirstName: patient.FirstName || "",
-      LastName: patient.LastName || "",
-      DateOfBirth: dob,
-      Gender: patient.Gender || ""
+      FullName: p.FullName,
+      Age: p.Age,
+      Condition: p.Condition,
+      PreferredDate: p.PreferredDate?.split("T")[0] || "",
+      PreferredTime: p.PreferredTime,
+      Gender: p.Gender,
+      Doctor: p.Doctor || ""
     });
-    setErrors({});
   };
 
-  // --- UPDATE
   const updatePatient = async (e) => {
     e.preventDefault();
     if (!editingId || !validateForm()) return;
-
     try {
-      const res = await fetch(`${API}/${editingId}`, {
+      await fetch(`${PATIENT_API}/${editingId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
-      if (!res.ok) throw new Error(`Update failed: ${res.status}`);
-      await fetchPatients();
+      fetchPatients();
       resetForm();
     } catch (err) {
       console.error("Update error:", err);
-      alert(err.message);
     }
   };
 
-  // --- DELETE
   const deletePatient = async (id) => {
     if (!confirm("Delete this patient?")) return;
     try {
-      const res = await fetch(`${API}/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
-      await fetchPatients();
-      if (editingId === id) resetForm();
+      await fetch(`${PATIENT_API}/${id}`, { method: "DELETE" });
+      fetchPatients();
+      if (currentPatients.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      }
     } catch (err) {
       console.error("Delete error:", err);
-      alert(err.message);
     }
   };
 
   const resetForm = () => {
     setEditingId(null);
     setFormData({
-      FirstName: "",
-      LastName: "",
-      DateOfBirth: "",
-      Gender: ""
+      FullName: "",
+      Age: "",
+      Condition: "",
+      PreferredDate: "",
+      PreferredTime: "",
+      Gender: "",
+      Doctor: ""
     });
     setErrors({});
+    setDoctorFilter("");
+    setAvailableSlots([]);
+  };
+
+  const getDoctorSchedule = (doctorId) => {
+    const doctor = doctors.find(d => d._id === doctorId);
+    if (!doctor || !doctor.Availability) return [];
+    return doctor.Availability;
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="text-4xl font-bold mb-6 text-gray-800">Patient Dashboard</h1>
-
-      {/* FORM */}
-      <div className="bg-white shadow-md rounded-lg p-6 mb-10">
-        <h2 className="text-2xl font-semibold mb-4">
-          {editingId ? "Update Patient" : "Add New Patient"}
-        </h2>
-
-        <form
-          onSubmit={editingId ? updatePatient : createPatient}
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-        >
-          <div className="flex flex-col">
-            <input
-              type="text"
-              placeholder="First Name"
-              value={formData.FirstName}
-              onChange={(e) => setFormData({ ...formData, FirstName: e.target.value })}
-              className={`border px-3 py-2 rounded focus:outline-none focus:ring-2 ${
-                errors.FirstName ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"
-              }`}
-              required
-            />
-            {errors.FirstName && <span className="text-red-500 text-sm">{errors.FirstName}</span>}
+    <DashboardLayout>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 -m-6 min-h-full">
+        <div className="max-w-7xl mx-auto pb-8">
+          {/* Header */}
+          <div className="mb-6 pt-6">
+            <h1 className="text-3xl font-bold text-gray-800 mb-1">Patient Management</h1>
+            <p className="text-sm text-gray-600">Manage patient appointments and information</p>
           </div>
 
-          <div className="flex flex-col">
-            <input
-              type="text"
-              placeholder="Last Name"
-              value={formData.LastName}
-              onChange={(e) => setFormData({ ...formData, LastName: e.target.value })}
-              className={`border px-3 py-2 rounded focus:outline-none focus:ring-2 ${
-                errors.LastName ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"
-              }`}
-              required
-            />
-            {errors.LastName && <span className="text-red-500 text-sm">{errors.LastName}</span>}
+          {/* FORM */}
+          <div className="bg-white shadow-lg rounded-xl p-6 mb-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">
+                {editingId ? "✏️ Update Patient" : "➕ Add New Patient"}
+              </h2>
+              {editingId && (
+                <button 
+                  type="button" 
+                  onClick={resetForm} 
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition text-sm font-medium"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Full Name */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter full name"
+                  value={formData.FullName}
+                  onChange={(e) => setFormData({ ...formData, FullName: e.target.value })}
+                  className={`border px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 transition ${errors.FullName ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`}
+                  required
+                />
+                {errors.FullName && <p className="text-red-500 text-xs mt-1">{errors.FullName}</p>}
+              </div>
+
+              {/* Age */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Age</label>
+                <input
+                  type="number"
+                  placeholder="Enter age"
+                  value={formData.Age}
+                  onChange={(e) => setFormData({ ...formData, Age: e.target.value })}
+                  className={`border px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 transition ${errors.Age ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`}
+                  required
+                />
+                {errors.Age && <p className="text-red-500 text-xs mt-1">{errors.Age}</p>}
+              </div>
+
+              {/* Condition */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Condition</label>
+                <input
+                  type="text"
+                  placeholder="Enter medical condition"
+                  value={formData.Condition}
+                  onChange={(e) => setFormData({ ...formData, Condition: e.target.value })}
+                  className={`border px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 transition ${errors.Condition ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`}
+                  required
+                />
+                {errors.Condition && <p className="text-red-500 text-xs mt-1">{errors.Condition}</p>}
+              </div>
+
+              {/* Gender */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Gender</label>
+                <select
+                  value={formData.Gender}
+                  onChange={(e) => setFormData({ ...formData, Gender: e.target.value })}
+                  className={`border px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 transition ${errors.Gender ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`}
+                  required
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+                {errors.Gender && <p className="text-red-500 text-xs mt-1">{errors.Gender}</p>}
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Preferred Date</label>
+                <input
+                  type="date"
+                  value={formData.PreferredDate}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    PreferredDate: e.target.value,
+                    PreferredTime: ""
+                  })}
+                  className={`border px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 transition ${errors.PreferredDate ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`}
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                />
+                {errors.PreferredDate && <p className="text-red-500 text-xs mt-1">{errors.PreferredDate}</p>}
+                {formData.PreferredDate && (
+                  <p className="text-xs mt-1 text-blue-600 font-medium">
+                    📅 {formData.PreferredDate} ({getWeekdayName(formData.PreferredDate)})
+                  </p>
+                )}
+              </div>
+
+              {/* Time Slot */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Time Slot</label>
+                <select
+                  value={formData.PreferredTime}
+                  onChange={(e) => setFormData({ ...formData, PreferredTime: e.target.value })}
+                  className={`border px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 transition ${errors.PreferredTime ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`}
+                  required
+                  disabled={!formData.PreferredDate || availableSlots.length === 0}
+                >
+                  <option value="">Select Time Slot</option>
+                  {availableSlots.length === 0 ? (
+                    formData.Doctor && formData.PreferredDate ? (
+                      <option value="" disabled>
+                        No slots available for {getWeekdayName(formData.PreferredDate)}
+                      </option>
+                    ) : (
+                      <option value="" disabled>
+                        {!formData.Doctor ? "Select a doctor first" : "Select a date first"}
+                      </option>
+                    )
+                  ) : (
+                    availableSlots.map((slot, idx) => (
+                      <option key={idx} value={slot}>
+                        {slot}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {errors.PreferredTime && <p className="text-red-500 text-xs mt-1">{errors.PreferredTime}</p>}
+                {availableSlots.length > 0 && (
+                  <p className="text-xs text-green-600 mt-1 font-medium">
+                    ✓ {availableSlots.length} slot(s) available
+                  </p>
+                )}
+              </div>
+
+              {/* Doctor Filter + Dropdown */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Select Doctor</label>
+                <input
+                  type="text"
+                  placeholder="🔍 Filter doctors by name or specialty..."
+                  value={doctorFilter}
+                  onChange={(e) => setDoctorFilter(e.target.value)}
+                  className="border border-gray-300 px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2 transition"
+                />
+                <select
+                  value={formData.Doctor}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    Doctor: e.target.value,
+                    PreferredDate: "",
+                    PreferredTime: ""
+                  })}
+                  className={`border px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 transition ${errors.Doctor ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"}`}
+                  required
+                >
+                  <option value="">Select Doctor</option>
+                  {filteredDoctors.map((d) => (
+                    <option key={d._id} value={d._id}>
+                      Dr. {d.DoctorName} - {d.Specialty}
+                    </option>
+                  ))}
+                </select>
+                {errors.Doctor && <p className="text-red-500 text-xs mt-1">{errors.Doctor}</p>}
+                {formData.Doctor && (
+                  <div className="text-xs text-blue-700 mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="font-semibold mb-1">👨‍⚕️ Doctor's Schedule:</div>
+                    {getDoctorSchedule(formData.Doctor).length === 0 ? (
+                      <div className="text-gray-600">No schedule available</div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {getDoctorSchedule(formData.Doctor).map((av, idx) => (
+                          <div key={idx} className="ml-2">
+                            <span className="font-medium">{av.day}:</span> {av.startTime} - {av.endTime}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <button 
+                  onClick={editingId ? updatePatient : createPatient}
+                  className={`w-full text-white font-semibold py-2.5 rounded-lg transition shadow-lg text-sm ${editingId ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-600 hover:bg-blue-700"}`}
+                >
+                  {editingId ? "💾 Update Patient" : "➕ Add Patient"}
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-col">
-            <input
-              type="date"
-              value={formData.DateOfBirth}
-              onChange={(e) => setFormData({ ...formData, DateOfBirth: e.target.value })}
-              className={`border px-3 py-2 rounded focus:outline-none focus:ring-2 ${
-                errors.DateOfBirth ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"
-              }`}
-              required
-            />
-            {errors.DateOfBirth && <span className="text-red-500 text-sm">{errors.DateOfBirth}</span>}
-          </div>
+          {/* TABLE */}
+          <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200">
+            <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600">
+              <h3 className="text-lg font-bold text-white">Patient Records ({patients.length} total)</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {["#", "Name", "Age", "Condition", "Date", "Time", "Gender", "Doctor", "Specialty", "Actions"].map((col) => (
+                      <th
+                        key={col}
+                        className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider"
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {currentPatients.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="text-center py-6 text-gray-500">
+                        <div className="text-3xl mb-1">📋</div>
+                        <div className="text-sm">No patients found</div>
+                      </td>
+                    </tr>
+                  ) : (
+                    currentPatients.map((p, index) => {
+                      const doc = doctors.find(d => d._id === p.Doctor);
+                      const dateStr = p.PreferredDate?.split("T")[0];
+                      const dayName = dateStr ? getWeekdayName(dateStr) : "";
+                      const globalIndex = indexOfFirstPatient + index + 1;
+                      
+                      return (
+                        <tr key={p.PatientID} className="hover:bg-blue-50 transition">
+                          <td className="px-4 py-3 text-xs text-gray-900">{globalIndex}</td>
+                          <td className="px-4 py-3 text-xs font-medium text-gray-900">{p.FullName}</td>
+                          <td className="px-4 py-3 text-xs text-gray-900">{p.Age}</td>
+                          <td className="px-4 py-3 text-xs text-gray-900">{p.Condition}</td>
+                          <td className="px-4 py-3 text-xs text-gray-900">
+                            {dateStr ? (
+                              <div>
+                                <div className="font-medium">{dateStr}</div>
+                                <div className="text-xs text-gray-500">{dayName}</div>
+                              </div>
+                            ) : "-"}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-900">{p.PreferredTime}</td>
+                          <td className="px-4 py-3 text-xs text-gray-900">{p.Gender}</td>
+                          <td className="px-4 py-3 text-xs text-gray-900">{doc?.DoctorName || "-"}</td>
+                          <td className="px-4 py-3 text-xs text-gray-900">{doc?.Specialty || "-"}</td>
+                          <td className="px-4 py-3 flex gap-2">
+                            <button 
+                              onClick={() => startEdit(p)} 
+                              className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition shadow text-xs font-medium"
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => deletePatient(p.PatientID)} 
+                              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition shadow text-xs font-medium"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-          <div className="flex flex-col">
-            <select
-              value={formData.Gender}
-              onChange={(e) => setFormData({ ...formData, Gender: e.target.value })}
-              className={`border px-3 py-2 rounded focus:outline-none focus:ring-2 ${
-                errors.Gender ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-blue-500"
-              }`}
-              required
-            >
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-            {errors.Gender && <span className="text-red-500 text-sm">{errors.Gender}</span>}
-          </div>
-
-          <button
-            type="submit"
-            className={`md:col-span-2 text-white font-semibold py-2 rounded transition ${
-              editingId ? "bg-yellow-600 hover:bg-yellow-700" : "bg-blue-600 hover:bg-blue-700"
-            }`}
-          >
-            {editingId ? "Update Patient" : "Add Patient"}
-          </button>
-
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="md:col-span-2 bg-gray-500 text-white font-semibold py-2 rounded hover:bg-gray-600 transition"
-            >
-              Cancel
-            </button>
-          )}
-        </form>
-      </div>
-
-      {/* TABLE */}
-      <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-blue-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DOB</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody className="bg-white divide-y divide-gray-200">
-            {patients.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">No patients found.</td>
-              </tr>
-            ) : (
-              patients.map((p) => (
-                <tr key={p.PatientID} className="hover:bg-gray-50 transition">
-                  <td className="px-6 py-4 whitespace-nowrap">{p.PatientID}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{p.FirstName} {p.LastName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{(p.DateOfBirth || "").split("T")[0]}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{p.Gender}</td>
-                  <td className="px-6 py-4 whitespace-nowrap flex gap-2">
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing {indexOfFirstPatient + 1} to {Math.min(indexOfLastPatient, patients.length)} of {patients.length} patients
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => paginate(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                      currentPage === 1
+                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  
+                  {[...Array(totalPages)].map((_, i) => (
                     <button
-                      onClick={() => startEdit(p)}
-                      className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition"
+                      key={i + 1}
+                      onClick={() => paginate(i + 1)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                        currentPage === i + 1
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
                     >
-                      Edit
+                      {i + 1}
                     </button>
-                    <button
-                      onClick={() => deletePatient(p.PatientID)}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
+                  ))}
+
+                  <button
+                    onClick={() => paginate(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                      currentPage === totalPages
+                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
