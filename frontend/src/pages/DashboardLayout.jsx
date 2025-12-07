@@ -4,7 +4,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Navbar */}
-      <nav className="bg-blue-600 text-white px-6 py-3 shadow-md flex gap-6">
+         <nav className="fixed top-0 left-0 w-full bg-blue-600 text-white px-6 py-3 shadow-md flex gap-6 z-50">
         <Link to="/admissions" className="hover:text-gray-200 transition">Admissions</Link>
         <Link to="/patients" className="hover:text-gray-200 transition">Patients</Link>
         <Link to="/doctors" className="hover:text-gray-200 transition">Doctors</Link>
