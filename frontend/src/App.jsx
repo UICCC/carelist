@@ -33,6 +33,7 @@ export default function Login() {
         setError(data.message || "Login failed");
       } else {
         setStep(2); // move to OTP step
+        setError(""); // clear any previous errors
       }
     } catch (err) {
       setError("Server error. Please try again.");
@@ -66,9 +67,11 @@ export default function Login() {
       if (!data.success) {
         setError(data.message || "OTP verification failed");
       } else {
-        // Save token and user info
+        // Save token and user info to localStorage
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+
+        console.log("✅ Login successful! Role:", data.user.role);
 
         // Role-based redirect
         if (data.user.role === "admin") {
@@ -76,8 +79,36 @@ export default function Login() {
         } else if (data.user.role === "doctor") {
           window.location.href = "/doctorDashboard";
         } else {
-          window.location.href = "/"; // fallback
+          // Fallback for other roles
+          window.location.href = "/";
         }
+      }
+    } catch (err) {
+      setError("Server error. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Resend OTP function
+  const handleResendOTP = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:3000/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert("New OTP has been sent to your email!");
+      } else {
+        setError(data.message || "Failed to resend OTP");
       }
     } catch (err) {
       setError("Server error. Please try again.");
@@ -110,7 +141,7 @@ export default function Login() {
             </p>
 
             {error && (
-              <p className="bg-red-100 text-red-700 p-2 rounded mb-4 text-center">
+              <p className="bg-red-100 text-red-700 p-2 rounded mb-4 text-center text-sm">
                 {error}
               </p>
             )}
@@ -121,7 +152,7 @@ export default function Login() {
                   <div>
                     <label className="block text-gray-700 mb-1">Email</label>
                     <input
-                      className="w-full border border-gray-300 px-3 py-2 rounded"
+                      className="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       type="email"
                       placeholder="example@gmail.com"
                       value={email}
@@ -133,7 +164,7 @@ export default function Login() {
                   <div>
                     <label className="block text-gray-700 mb-1">Password</label>
                     <input
-                      className="w-full border border-gray-300 px-3 py-2 rounded"
+                      className="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -144,7 +175,7 @@ export default function Login() {
                   <button
                     type="submit"
                     onClick={handleLogin}
-                    className="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700 transition"
+                    className="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700 transition disabled:bg-blue-300 disabled:cursor-not-allowed"
                     disabled={loading}
                   >
                     {loading ? "Sending OTP..." : "Login"}
@@ -154,27 +185,50 @@ export default function Login() {
 
               {step === 2 && (
                 <>
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      📧 OTP has been sent to <strong>{email}</strong>
+                    </p>
+                  </div>
+
                   <div>
-                    <label className="block text-gray-700 mb-1">OTP</label>
+                    <label className="block text-gray-700 mb-1">Enter OTP</label>
                     <input
-                      className="w-full border border-gray-300 px-3 py-2 rounded"
+                      className="w-full border border-gray-300 px-3 py-2 rounded text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500"
                       type="text"
-                      placeholder="123456"
+                      placeholder="000000"
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                       maxLength={6}
                       required
+                      autoFocus
                     />
                   </div>
 
                   <button
                     type="submit"
                     onClick={handleVerifyOTP}
-                    className="w-full bg-green-600 text-white font-semibold py-2 rounded hover:bg-green-700 transition"
+                    className="w-full bg-green-600 text-white font-semibold py-2 rounded hover:bg-green-700 transition disabled:bg-green-300 disabled:cursor-not-allowed"
                     disabled={loading}
                   >
                     {loading ? "Verifying..." : "Verify OTP"}
                   </button>
+
+                  <div className="flex justify-between items-center mt-4">
+                    <button
+                      onClick={() => setStep(1)}
+                      className="text-sm text-gray-600 hover:text-gray-800 underline"
+                    >
+                      ← Back to Login
+                    </button>
+                    <button
+                      onClick={handleResendOTP}
+                      className="text-sm text-blue-600 hover:text-blue-800 underline"
+                      disabled={loading}
+                    >
+                      Resend OTP
+                    </button>
+                  </div>
                 </>
               )}
             </div>

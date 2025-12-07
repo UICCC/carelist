@@ -8,6 +8,8 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const patientsPerPage = 5;
 
   const [formData, setFormData] = useState({
@@ -24,6 +26,31 @@ export default function PatientsPage() {
   const [errors, setErrors] = useState({});
   const [doctorFilter, setDoctorFilter] = useState("");
   const [availableSlots, setAvailableSlots] = useState([]);
+
+  // Get token from localStorage
+  const getToken = () => {
+    return localStorage.getItem('token');
+  };
+
+  // Create headers with auth token
+  const getAuthHeaders = () => {
+    const token = getToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  };
+
+  // Check auth and redirect if needed
+  const checkAuth = () => {
+    const token = getToken();
+    if (!token) {
+      alert("Session expired. Please login again.");
+      window.location.href = '/';
+      return false;
+    }
+    return true;
+  };
 
   // Pagination calculations
   const indexOfLastPatient = currentPage * patientsPerPage;
@@ -44,20 +71,58 @@ export default function PatientsPage() {
   };
 
   const fetchPatients = async () => {
+    if (!checkAuth()) return;
+    
     try {
-      const res = await fetch(PATIENT_API);
+      setLoading(true);
+      setError(null);
+      
+      const res = await fetch(PATIENT_API, {
+        headers: getAuthHeaders()
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch patients: ${res.status}`);
+      }
+
       const data = await res.json();
-      setPatients(data || []);
+      setPatients(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Fetch error:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchDoctors = async () => {
+    if (!checkAuth()) return;
+    
     try {
-      const res = await fetch(DOCTOR_API);
+      const res = await fetch(DOCTOR_API, {
+        headers: getAuthHeaders()
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch doctors: ${res.status}`);
+      }
+
       const data = await res.json();
-      setDoctors(data || []);
+      setDoctors(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching doctors:", err);
     }
@@ -127,18 +192,38 @@ export default function PatientsPage() {
 
   const createPatient = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm() || !checkAuth()) return;
+    
     try {
-      await fetch(PATIENT_API, {
+      const res = await fetch(PATIENT_API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData)
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (res.status === 403) {
+        alert("Access denied. Only admins can create appointments.");
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to create patient");
+      }
+
       fetchPatients();
       resetForm();
       setCurrentPage(1);
+      alert("Patient added successfully!");
     } catch (err) {
       console.error("Create error:", err);
+      alert("Error creating patient: " + err.message);
     }
   };
 
@@ -151,36 +236,79 @@ export default function PatientsPage() {
       PreferredDate: p.PreferredDate?.split("T")[0] || "",
       PreferredTime: p.PreferredTime,
       Gender: p.Gender,
-      Doctor: p.Doctor || ""
+      Doctor: p.Doctor?._id || p.Doctor || ""
     });
   };
 
   const updatePatient = async (e) => {
     e.preventDefault();
-    if (!editingId || !validateForm()) return;
+    if (!editingId || !validateForm() || !checkAuth()) return;
+    
     try {
-      await fetch(`${PATIENT_API}/${editingId}`, {
+      const res = await fetch(`${PATIENT_API}/${editingId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData)
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (res.status === 403) {
+        alert("Access denied. Only admins can update appointments.");
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to update patient");
+      }
+
       fetchPatients();
       resetForm();
+      alert("Patient updated successfully!");
     } catch (err) {
       console.error("Update error:", err);
+      alert("Error updating patient: " + err.message);
     }
   };
 
   const deletePatient = async (id) => {
-    if (!confirm("Delete this patient?")) return;
+    if (!confirm("Delete this patient?") || !checkAuth()) return;
+    
     try {
-      await fetch(`${PATIENT_API}/${id}`, { method: "DELETE" });
+      const res = await fetch(`${PATIENT_API}/${id}`, { 
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (res.status === 403) {
+        alert("Access denied. Only admins can delete appointments.");
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to delete patient");
+      }
+
       fetchPatients();
       if (currentPatients.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       }
+      alert("Patient deleted successfully!");
     } catch (err) {
       console.error("Delete error:", err);
+      alert("Error deleting patient: " + err.message);
     }
   };
 
@@ -215,6 +343,20 @@ export default function PatientsPage() {
             <h1 className="text-3xl font-bold text-gray-800 mb-1">Patient Management</h1>
             <p className="text-sm text-gray-600">Manage patient appointments and information</p>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+              {error}
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded-lg mb-4">
+              Loading patients...
+            </div>
+          )}
 
           {/* FORM */}
           <div className="bg-white shadow-lg rounded-xl p-6 mb-6 border border-gray-200">
@@ -440,7 +582,7 @@ export default function PatientsPage() {
                     </tr>
                   ) : (
                     currentPatients.map((p, index) => {
-                      const doc = doctors.find(d => d._id === p.Doctor);
+                      const doc = doctors.find(d => d._id === (p.Doctor?._id || p.Doctor));
                       const dateStr = p.PreferredDate?.split("T")[0];
                       const dayName = dateStr ? getWeekdayName(dateStr) : "";
                       const globalIndex = indexOfFirstPatient + index + 1;

@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const Doctor = require("../models/doctor-model");
+const { verifyToken, requireRole } = require("../../auth/middlewares/auth-middleware");
 
 // ----------------- GET all doctors -----------------
-router.get("/", async (req, res) => {
+// Admin and Doctor can view all doctors list
+router.get("/", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const doctors = await Doctor.find({});
     res.json(doctors);
@@ -14,7 +16,8 @@ router.get("/", async (req, res) => {
 });
 
 // ----------------- GET unique specialties -----------------
-router.get("/specialties/all", async (req, res) => {
+// Admin and Doctor can view specialties
+router.get("/specialties/all", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const specialties = await Doctor.distinct("Specialty");
     res.json(specialties);
@@ -25,7 +28,8 @@ router.get("/specialties/all", async (req, res) => {
 });
 
 // ----------------- GET Doctor Availability -----------------
-router.get("/availability/:id", async (req, res) => {
+// Admin and Doctor can view availability
+router.get("/availability/:id", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const doctor = await Doctor.findById(req.params.id).select("DoctorName Specialty Availability");
     if (!doctor) return res.status(404).json({ message: "Doctor not found" });
@@ -37,7 +41,8 @@ router.get("/availability/:id", async (req, res) => {
 });
 
 // ----------------- UPDATE Doctor Availability -----------------
-router.put("/availability/:id", async (req, res) => {
+// Admin and Doctor can update their availability
+router.put("/availability/:id", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const { Availability } = req.body;
     const updatedDoctor = await Doctor.findByIdAndUpdate(
@@ -54,7 +59,8 @@ router.put("/availability/:id", async (req, res) => {
 });
 
 // ----------------- GET doctor by ID -----------------
-router.get("/:id", async (req, res) => {
+// Admin and Doctor can view doctor details
+router.get("/:id", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const doctor = await Doctor.findById(req.params.id);
     if (!doctor) return res.status(404).json({ message: "Doctor not found" });
@@ -66,7 +72,8 @@ router.get("/:id", async (req, res) => {
 });
 
 // ----------------- POST new doctor -----------------
-router.post("/", async (req, res) => {
+// ONLY Admin can add new doctors to the system
+router.post("/", verifyToken, requireRole("admin"), async (req, res) => {
   try {
     const { DoctorName, Specialty } = req.body;
     if (!DoctorName || !Specialty) {
@@ -82,7 +89,8 @@ router.post("/", async (req, res) => {
 });
 
 // ----------------- PUT update doctor -----------------
-router.put("/:id", async (req, res) => {
+// ONLY Admin can fully update doctor information
+router.put("/:id", verifyToken, requireRole("admin"), async (req, res) => {
   try {
     const updatedDoctor = await Doctor.findByIdAndUpdate(
       req.params.id,
@@ -98,7 +106,8 @@ router.put("/:id", async (req, res) => {
 });
 
 // ----------------- DELETE doctor -----------------
-router.delete("/:id", async (req, res) => {
+// ONLY Admin can delete doctors from the system
+router.delete("/:id", verifyToken, requireRole("admin"), async (req, res) => {
   try {
     const deletedDoctor = await Doctor.findByIdAndDelete(req.params.id);
     if (!deletedDoctor) return res.status(404).json({ message: "Doctor not found" });

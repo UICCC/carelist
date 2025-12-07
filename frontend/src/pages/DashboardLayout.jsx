@@ -8,10 +8,9 @@ export default function DashboardLayout({ children }) {
         <Link to="/admissions" className="hover:text-gray-200 transition">Admissions</Link>
         <Link to="/patients" className="hover:text-gray-200 transition">Patients</Link>
         <Link to="/doctors" className="hover:text-gray-200 transition">Doctors</Link>
-        <Link to="/hospitals" className="hover:text-gray-200 transition">Hospitals</Link>
-        <Link to="/conditions" className="hover:text-gray-200 transition">Conditions</Link>
+        
+        
         <Link to="/appStatus" className="hover:text-gray-200 transition">Status</Link>
-        <Link to="/doctorDashboard" className="hover:text-gray-200 transition">dr board</Link>
          <Link to="/signup" className="hover:text-gray-200 transition">sign Up</Link>
 
       </nav>

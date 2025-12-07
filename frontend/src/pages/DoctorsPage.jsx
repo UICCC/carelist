@@ -8,6 +8,8 @@ export default function DoctorsPage() {
   const [editingId, setEditingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [formData, setFormData] = useState({
     DoctorName: "",
@@ -21,15 +23,62 @@ export default function DoctorsPage() {
 
   const [errors, setErrors] = useState({});
 
+  // Get token from localStorage
+  const getToken = () => {
+    return localStorage.getItem('token');
+  };
+
+  // Create headers with auth token
+  const getAuthHeaders = () => {
+    const token = getToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  };
+
+  // Check auth and redirect if needed
+  const checkAuth = () => {
+    const token = getToken();
+    if (!token) {
+      alert("Session expired. Please login again.");
+      window.location.href = '/';
+      return false;
+    }
+    return true;
+  };
+
   // ------------------------ FETCH ------------------------
   const fetchDoctors = async () => {
+    if (!checkAuth()) return;
+
     try {
-      const res = await fetch(API);
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch(API, {
+        headers: getAuthHeaders()
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch doctors: ${res.status}`);
+      }
+
       const data = await res.json();
       console.log("Fetched doctors:", data);
-      setDoctors(data || []);
+      setDoctors(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Fetch doctors error:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -75,7 +124,7 @@ export default function DoctorsPage() {
   // ------------------------ CREATE -----------------------
   const createDoctor = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm() || !checkAuth()) return;
 
     try {
       const payload = {
@@ -85,9 +134,21 @@ export default function DoctorsPage() {
 
       const res = await fetch(API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (res.status === 403) {
+        alert("Access denied. Only admins can add doctors.");
+        return;
+      }
 
       if (!res.ok) {
         const error = await res.json();
@@ -126,7 +187,7 @@ export default function DoctorsPage() {
   // ------------------------ UPDATE ------------------------
   const updateDoctor = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm() || !checkAuth()) return;
 
     try {
       const payload = {
@@ -136,9 +197,21 @@ export default function DoctorsPage() {
 
       const res = await fetch(`${API}/${editingId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (res.status === 403) {
+        alert("Access denied. Only admins can update doctors.");
+        return;
+      }
 
       if (!res.ok) {
         const error = await res.json();
@@ -156,12 +229,25 @@ export default function DoctorsPage() {
 
   // ------------------------ DELETE ------------------------
   const deleteDoctor = async (id) => {
-    if (!confirm("Delete this doctor?")) return;
+    if (!confirm("Delete this doctor?") || !checkAuth()) return;
 
     try {
       const res = await fetch(`${API}/${id}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: getAuthHeaders()
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        alert("Session expired. Please login again.");
+        window.location.href = '/';
+        return;
+      }
+
+      if (res.status === 403) {
+        alert("Access denied. Only admins can delete doctors.");
+        return;
+      }
 
       if (!res.ok) {
         const error = await res.json();
@@ -234,6 +320,20 @@ export default function DoctorsPage() {
     <DashboardLayout>
       <div className="min-h-screen bg-gray-100 p-4 md:p-6">
         <h1 className="text-3xl md:text-4xl font-bold mb-6 text-gray-800">Doctors Dashboard</h1>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-4">
+            Loading doctors...
+          </div>
+        )}
 
         {/* FORM */}
         <div className="bg-white shadow-md rounded-lg p-4 md:p-6 mb-8">
@@ -377,7 +477,7 @@ export default function DoctorsPage() {
               )}
 
               {formData.Availability.map((slot, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3 p-3 border rounded bg-gray-50">
+                <div key={`availability-${index}`} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3 p-3 border rounded bg-gray-50">
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Day</label>
                     <select
@@ -500,7 +600,7 @@ export default function DoctorsPage() {
                         <div className="text-xs md:text-sm text-gray-900">
                           {d.Availability && d.Availability.length > 0 ? (
                             d.Availability.slice(0, 1).map((av, idx) => (
-                              <div key={idx}>
+                              <div key={`schedule-${d._id}-${idx}`}>
                                 {av.day}: {av.startTime}-{av.endTime}
                               </div>
                             ))
@@ -564,7 +664,7 @@ export default function DoctorsPage() {
                   
                   {[...Array(totalPages)].map((_, index) => (
                     <button
-                      key={index + 1}
+                      key={`page-${index + 1}`}
                       onClick={() => paginate(index + 1)}
                       className={`px-2 md:px-3 py-1 text-xs md:text-sm rounded ${
                         currentPage === index + 1
