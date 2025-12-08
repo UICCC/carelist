@@ -107,6 +107,9 @@ export default function DoctorDashboard() {
         return;
       }
 
+      console.log("Updating status for PatientID:", id, "Status:", status);
+      console.log("API URL:", `${API}/${id}/status`);
+
       const res = await fetch(`${API}/${id}/status`, {
         method: "PATCH",
         headers: { 
@@ -128,7 +131,10 @@ export default function DoctorDashboard() {
         return;
       }
 
-      if (!res.ok) throw new Error("Failed to update status");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || errorData.details || "Failed to update status");
+      }
 
       fetchAppointments(); // refresh table
     } catch (err) {

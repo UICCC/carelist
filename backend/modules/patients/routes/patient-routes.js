@@ -10,16 +10,29 @@ const { verifyToken, requireRole } = require("../../auth/middlewares/auth-middle
 router.get("/", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     let patients;
+    console.log("GET /patients - User role:", req.user.role, "Email:", req.user.email);
+    
     if (req.user.role === "doctor") {
-      // Doctor only sees their appointments
-      patients = await Patient.find({ Doctor: req.user.doctorId }).populate("Doctor");
+      // Doctor only sees appointments assigned to their doctor record
+      // First, find the doctor record by matching email
+      const Doctor = require("../../doctor/models/doctor-model");
+      const doctorRecord = await Doctor.findOne({ Email: req.user.email });
+      
+      if (!doctorRecord) {
+        console.log("No doctor record found for email:", req.user.email);
+        return res.json([]); // Return empty if no doctor record
+      }
+      
+      patients = await Patient.find({ Doctor: doctorRecord._id }).populate("Doctor");
+      console.log("Fetched", patients.length, "appointments for doctor:", doctorRecord.DoctorName);
     } else {
       // Admin sees all
       patients = await Patient.find().populate("Doctor");
+      console.log("Fetched", patients.length, "total appointments for admin");
     }
     res.json(patients);
   } catch (err) {
-    console.error(err);
+    console.error("Error fetching patients:", err);
     res.status(500).json({ error: "Failed to fetch patients" });
   }
 });
@@ -83,20 +96,28 @@ router.patch("/:id/status", verifyToken, requireRole("admin", "doctor"), async (
     const { status } = req.body;
     if (!["Accepted", "Rejected"].includes(status)) return res.status(400).json({ error: "Invalid status" });
 
-    const patient = await Patient.findOne({ PatientID: Number(req.params.id) });
+    const patientID = Number(req.params.id);
+    if (isNaN(patientID)) {
+      return res.status(400).json({ error: "Invalid patient ID format" });
+    }
+
+    const patient = await Patient.findOne({ PatientID: patientID }).populate("Doctor");
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    // Doctor can only update their own
-    if (req.user.role === "doctor" && String(patient.Doctor) !== String(req.user.doctorId)) {
-      return res.status(403).json({ error: "Access denied. Not your appointment." });
+    // Doctor can only update their own appointments
+    if (req.user.role === "doctor") {
+      const doctorRecord = await require("../../doctor/models/doctor-model").findOne({ Email: req.user.email });
+      if (!doctorRecord || String(patient.Doctor?._id) !== String(doctorRecord._id)) {
+        return res.status(403).json({ error: "Access denied. Not your appointment." });
+      }
     }
 
     patient.status = status;
     await patient.save();
     res.json(patient);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update status" });
+    console.error("Error updating patient status:", err);
+    res.status(500).json({ error: "Failed to update status", details: err.message });
   }
 });
 
