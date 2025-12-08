@@ -11,7 +11,7 @@ import ConditionsPage from "./pages/ConditionPage";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import ApplicationStatusPage from "./pages/ApplicationStatusPage";
 import SignUp from "./pages/login/SignUp";
-import "./index.css"; // ✅ Must import Tailwind CSS
+import './tailwind.css';
 
 function MainRouter() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
