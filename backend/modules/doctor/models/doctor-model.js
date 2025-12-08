@@ -4,12 +4,12 @@ const mongoose = require("mongoose");
 const availabilitySchema = new mongoose.Schema({
   day: {
     type: String,
-    enum: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+    enum: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
     required: true
   },
   startTime: { type: String, required: true },
   endTime: { type: String, required: true }
-});
+}, { _id: false });
 
 // Doctor Schema
 const doctorSchema = new mongoose.Schema({
@@ -28,5 +28,8 @@ const doctorSchema = new mongoose.Schema({
   YearsOfExperience: { type: Number, min: 0, default: 0 },
   Availability: [availabilitySchema]
 }, { timestamps: true });
+
+// Ensure no duplicate index warnings
+doctorSchema.index({ Email: 1 }, { unique: true, background: true, sparse: true });
 
 module.exports = mongoose.model("Doctor", doctorSchema);

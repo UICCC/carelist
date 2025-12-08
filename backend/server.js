@@ -33,7 +33,7 @@ const conditionRoutes = require("./modules/condition/routes/condition-routes");
 const admissionRoutes = require("./modules/admission/routes/admission-routes");
 
 const port = process.env.PORT || 3000;
-const hostname = "localhost";
+const hostname = "0.0.0.0";
 
 // ✅ Connect to MongoDB ONCE before starting the server
 connectDB()

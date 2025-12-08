@@ -6,19 +6,17 @@ const updatePatientRules = require("../middlewares/update-patient-rules");
 const checkValidation = require("../../../shared/middlewares/check-validation");
 const { verifyToken, requireRole } = require("../../auth/middlewares/auth-middleware");
 
-// ----------------- GET all patients -----------------
-// Admin sees all; Doctor sees only their patients
+// GET all patients
 router.get("/", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     let patients;
-
     if (req.user.role === "doctor") {
-      if (!req.user.doctorId) return res.json([]);
+      // Doctor only sees their appointments
       patients = await Patient.find({ Doctor: req.user.doctorId }).populate("Doctor");
     } else {
+      // Admin sees all
       patients = await Patient.find().populate("Doctor");
     }
-
     res.json(patients);
   } catch (err) {
     console.error(err);
@@ -26,17 +24,14 @@ router.get("/", verifyToken, requireRole("admin", "doctor"), async (req, res) =>
   }
 });
 
-// ----------------- GET patient by PatientID -----------------
+// GET patient by ID
 router.get("/:id", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const patient = await Patient.findOne({ PatientID: Number(req.params.id) }).populate("Doctor");
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    // Doctor can only view their own patient
-    if (req.user.role === "doctor") {
-      if (!req.user.doctorId || !patient.Doctor || !patient.Doctor._id.equals(req.user.doctorId)) {
-        return res.status(403).json({ error: "Access denied. Not your patient." });
-      }
+    if (req.user.role === "doctor" && String(patient.Doctor?._id) !== String(req.user.doctorId)) {
+      return res.status(403).json({ error: "Access denied. Not your appointment." });
     }
 
     res.json(patient);
@@ -46,8 +41,7 @@ router.get("/:id", verifyToken, requireRole("admin", "doctor"), async (req, res)
   }
 });
 
-// ----------------- POST new patient -----------------
-// ONLY Admin
+// POST new patient (Admin only)
 router.post("/", verifyToken, requireRole("admin"), createPatientRules, checkValidation, async (req, res) => {
   try {
     const lastPatient = await Patient.findOne().sort({ PatientID: -1 });
@@ -67,8 +61,7 @@ router.post("/", verifyToken, requireRole("admin"), createPatientRules, checkVal
   }
 });
 
-// ----------------- PUT update patient -----------------
-// ONLY Admin
+// PUT update patient (Admin only)
 router.put("/:id", verifyToken, requireRole("admin"), updatePatientRules, checkValidation, async (req, res) => {
   try {
     const updatedPatient = await Patient.findOneAndUpdate(
@@ -76,9 +69,7 @@ router.put("/:id", verifyToken, requireRole("admin"), updatePatientRules, checkV
       req.body,
       { new: true }
     );
-
     if (!updatedPatient) return res.status(404).json({ error: "Patient not found" });
-
     res.json(updatedPatient);
   } catch (err) {
     console.error(err);
@@ -86,28 +77,22 @@ router.put("/:id", verifyToken, requireRole("admin"), updatePatientRules, checkV
   }
 });
 
-// ----------------- PATCH update status (Accept/Reject) -----------------
-// Admin and Doctor can accept/reject appointments
+// PATCH status (Admin & Doctor)
 router.patch("/:id/status", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const { status } = req.body;
-    if (!["Accepted", "Rejected"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
-    }
+    if (!["Accepted", "Rejected"].includes(status)) return res.status(400).json({ error: "Invalid status" });
 
-    const patient = await Patient.findOne({ PatientID: Number(req.params.id) }).populate("Doctor");
+    const patient = await Patient.findOne({ PatientID: Number(req.params.id) });
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    // Doctor can only update their own patient
-    if (req.user.role === "doctor") {
-      if (!req.user.doctorId || !patient.Doctor || !patient.Doctor._id.equals(req.user.doctorId)) {
-        return res.status(403).json({ error: "Access denied. Not your patient." });
-      }
+    // Doctor can only update their own
+    if (req.user.role === "doctor" && String(patient.Doctor) !== String(req.user.doctorId)) {
+      return res.status(403).json({ error: "Access denied. Not your appointment." });
     }
 
     patient.status = status;
     await patient.save();
-
     res.json(patient);
   } catch (err) {
     console.error(err);
@@ -115,8 +100,7 @@ router.patch("/:id/status", verifyToken, requireRole("admin", "doctor"), async (
   }
 });
 
-// ----------------- DELETE patient -----------------
-// ONLY Admin
+// DELETE patient (Admin only)
 router.delete("/:id", verifyToken, requireRole("admin"), async (req, res) => {
   try {
     const deletedPatient = await Patient.findOneAndDelete({ PatientID: Number(req.params.id) });
