@@ -6,11 +6,28 @@ const cookieParser = require("cookie-parser"); // <-- ADD THIS
 
 const server = express();
 
-// Middleware to parse JSON and URL-encoded bodies
+// ============================================
+// CORS Middleware
+// ============================================
+const allowedOrigins = [
+  process.env.FRONTEND_URL || "http://localhost:5173", // dev frontend
+  "https://carelist-dkdj.vercel.app"                  // deployed frontend
+];
+
 server.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true
+  origin: function(origin, callback){
+    // Allow requests with no origin (Postman or server-to-server)
+    if(!origin) return callback(null, true);
+    if(allowedOrigins.indexOf(origin) === -1){
+      const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true // Keep this if you use cookies/auth
 }));
+
+// Middleware to parse JSON and URL-encoded bodies
 server.use(express.json());
 server.use(express.urlencoded({ extended: true }));
 server.use(cookieParser()); // <-- ADD THIS for cookie support
@@ -23,7 +40,9 @@ if (process.env.NODE_ENV === "development") {
   });
 }
 
+// ============================================
 // Import all routers
+// ============================================
 const authRoutes = require("./modules/auth/routes/auth-routes"); // <-- ADD THIS
 const patientRoutes = require("./modules/patients/routes/patient-routes");
 const doctorRoutes = require("./modules/doctor/routes/doctor-routes");
@@ -35,7 +54,9 @@ const admissionRoutes = require("./modules/admission/routes/admission-routes");
 const port = process.env.PORT || 3000;
 const hostname = "0.0.0.0";
 
+// ============================================
 // ✅ Connect to MongoDB ONCE before starting the server
+// ============================================
 connectDB()
   .then(() => {
     console.log("✅ MongoDB connected. Starting Express server...");
