@@ -2,35 +2,38 @@ require("dotenv").config(); // Load .env variables
 const express = require("express");
 const connectDB = require("./shared/middlewares/connect-db"); // DB middleware
 const cors = require("cors");
-const cookieParser = require("cookie-parser"); // <-- ADD THIS
+const cookieParser = require("cookie-parser");
 
 const server = express();
 
 // ============================================
 // CORS Middleware
 // ============================================
+// Allowed frontend URLs (add all deployed URLs here)
 const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:5173", // dev frontend
-  "https://carelist-dkdj.vercel.app"                  // deployed frontend
+  process.env.FRONTEND_URL || "http://localhost:5173", // local dev
+  "https://carelist-dkdj.vercel.app",
+  "https://carelist-l0xumhmgo-uicccs-projects.vercel.app"
 ];
 
 server.use(cors({
   origin: function(origin, callback){
-    // Allow requests with no origin (Postman or server-to-server)
+    // Allow requests with no origin (Postman, server-to-server)
     if(!origin) return callback(null, true);
+
     if(allowedOrigins.indexOf(origin) === -1){
       const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
       return callback(new Error(msg), false);
     }
     return callback(null, true);
   },
-  credentials: true // Keep this if you use cookies/auth
+  credentials: true
 }));
 
 // Middleware to parse JSON and URL-encoded bodies
 server.use(express.json());
 server.use(express.urlencoded({ extended: true }));
-server.use(cookieParser()); // <-- ADD THIS for cookie support
+server.use(cookieParser());
 
 // Request logging middleware (development only)
 if (process.env.NODE_ENV === "development") {
@@ -43,7 +46,7 @@ if (process.env.NODE_ENV === "development") {
 // ============================================
 // Import all routers
 // ============================================
-const authRoutes = require("./modules/auth/routes/auth-routes"); // <-- ADD THIS
+const authRoutes = require("./modules/auth/routes/auth-routes");
 const patientRoutes = require("./modules/patients/routes/patient-routes");
 const doctorRoutes = require("./modules/doctor/routes/doctor-routes");
 const hospitalRoutes = require("./modules/hospital/routes/hospital-routes");
@@ -55,14 +58,14 @@ const port = process.env.PORT || 3000;
 const hostname = "0.0.0.0";
 
 // ============================================
-// ✅ Connect to MongoDB ONCE before starting the server
+// Connect to MongoDB before starting server
 // ============================================
 connectDB()
   .then(() => {
     console.log("✅ MongoDB connected. Starting Express server...");
 
-    // Mount routers only after DB connection is ready
-    server.use("/auth", authRoutes); // <-- ADD THIS (Auth routes - must be first)
+    // Mount routers after DB connection
+    server.use("/auth", authRoutes);
     server.use("/patients", patientRoutes);
     server.use("/doctors", doctorRoutes);
     server.use("/hospitals", hospitalRoutes);
@@ -88,7 +91,7 @@ connectDB()
       });
     });
 
-    // 404 handler for unmatched routes
+    // 404 handler
     server.use((req, res) => {
       res.status(404).json({
         success: false,
@@ -109,11 +112,11 @@ connectDB()
       });
     });
 
-    // Start the server
+    // Start server
     server.listen(port, hostname, () => {
       console.log(`🚀 Server running at http://${hostname}:${port}`);
       console.log(`📍 Environment: ${process.env.NODE_ENV || "development"}`);
-      console.log(`🔐 Auth endpoints available at http://${hostname}:${port}/auth`);
+      console.log(`🔐 Auth endpoints: http://${hostname}:${port}/auth`);
     });
   })
   .catch((err) => {
