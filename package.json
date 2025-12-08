@@ -4,9 +4,14 @@
     "react-router-dom": "^7.9.6"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.17",
+    "tailwindcss": "^4.1.17",
+    "@tailwindcss/postcss7-compat": "^4.1.17",
     "autoprefixer": "^10.4.22",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.17"
+    "postcss": "^8.5.6"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "postinstall": "tailwindcss -i ./src/index.css -o ./dist/output.css --minify"
   }
 }
