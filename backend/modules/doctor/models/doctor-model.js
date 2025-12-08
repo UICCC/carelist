@@ -29,7 +29,7 @@ const doctorSchema = new mongoose.Schema({
   Availability: [availabilitySchema]
 }, { timestamps: true });
 
-// Ensure no duplicate index warnings
-doctorSchema.index({ Email: 1 }, { unique: true, background: true, sparse: true });
+// Email field uses `unique: true` which creates an index automatically.
+// Avoid creating a duplicate index here.
 
 module.exports = mongoose.model("Doctor", doctorSchema);

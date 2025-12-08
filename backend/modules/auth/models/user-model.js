@@ -129,7 +129,8 @@ userSchema.methods.clearOTP = function() {
 };
 
 // Create indexes for performance
-userSchema.index({ email: 1 });
+// `email` has `unique: true` in the schema definition which creates
+// an index automatically. Avoid creating a duplicate index here.
 userSchema.index({ role: 1 });
 
 const User = mongoose.model("User", userSchema);
