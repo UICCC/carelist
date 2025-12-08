@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "./DashboardLayout";
 
-const API = "http://localhost:3000/doctors";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API = `${API_BASE}/doctors`;
 
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState([]);

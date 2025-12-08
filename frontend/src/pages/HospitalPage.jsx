@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:3000/hospitals";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API = `${API_BASE}/hospitals`;
 
 export default function HospitalsPage() {
   const [hospitals, setHospitals] = useState([]);

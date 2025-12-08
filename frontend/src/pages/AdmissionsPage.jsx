@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 function AdmissionsPage() {
   const [admissions, setAdmissions] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/admission")
+    fetch(`${API_BASE}/admissions`)
       .then(res => res.json())
       .then(data => setAdmissions(data))
       .catch(err => console.error(err));

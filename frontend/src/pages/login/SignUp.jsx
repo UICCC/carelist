@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export default function SignUp() {
   const [form, setForm] = useState({
     fullName: "",
@@ -27,7 +29,7 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:3000/auth/signup", {
+      const res = await fetch(`${API_BASE}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-const API = "http://localhost:3000/patients"; // backend
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API = `${API_BASE}/patients`; // backend
 
 export default function DoctorDashboard() {
   const [appointments, setAppointments] = useState([]);

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:3000/conditions";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API = `${API_BASE}/conditions`;
 
 export default function ConditionsPage() {
   const [conditions, setConditions] = useState([]);
