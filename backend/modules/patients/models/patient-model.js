@@ -12,4 +12,17 @@ const patientSchema = new mongoose.Schema({
   Doctor: { type: mongoose.Schema.Types.ObjectId, ref: "Doctor" }
 });
 
+// Auto-increment PatientID before saving
+patientSchema.pre('save', async function(next) {
+  if (this.isNew && !this.PatientID) {
+    try {
+      const lastPatient = await mongoose.model('Patient').findOne().sort({ PatientID: -1 });
+      this.PatientID = lastPatient ? lastPatient.PatientID + 1 : 1;
+    } catch (error) {
+      return next(error);
+    }
+  }
+  next();
+});
+
 module.exports = mongoose.model("Patient", patientSchema);

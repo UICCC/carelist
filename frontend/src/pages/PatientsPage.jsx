@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "./DashboardLayout";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
-const PATIENT_API = `${API_BASE}/patients`;
-const DOCTOR_API = `${API_BASE}/doctors`;
+const PATIENT_API = "http://localhost:3000/patients";
+const DOCTOR_API = "http://localhost:3000/doctors";
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
@@ -171,8 +170,11 @@ export default function PatientsPage() {
       const hour = Math.floor(minutes / 60);
       const minute = minutes % 60;
       const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-      const displayText = `${weekday} ${time}`;
-      slots.push(displayText);
+      // Store object with value (time only) and display text (weekday + time)
+      slots.push({
+        value: time,
+        display: `${weekday} ${time}`
+      });
     }
 
     setAvailableSlots(slots);
@@ -196,6 +198,8 @@ export default function PatientsPage() {
     if (!validateForm() || !checkAuth()) return;
     
     try {
+      console.log("Sending create data:", formData);
+      
       const res = await fetch(PATIENT_API, {
         method: "POST",
         headers: getAuthHeaders(),
@@ -229,7 +233,9 @@ export default function PatientsPage() {
   };
 
   const startEdit = (p) => {
-    setEditingId(p.PatientID);
+    // Use MongoDB _id for editing
+    setEditingId(p._id);
+    
     setFormData({
       FullName: p.FullName,
       Age: p.Age,
@@ -246,6 +252,8 @@ export default function PatientsPage() {
     if (!editingId || !validateForm() || !checkAuth()) return;
     
     try {
+      console.log("Sending update data:", formData);
+      
       const res = await fetch(`${PATIENT_API}/${editingId}`, {
         method: "PUT",
         headers: getAuthHeaders(),
@@ -265,6 +273,9 @@ export default function PatientsPage() {
       }
 
       if (!res.ok) {
+        const errorData = await res.json();
+        console.error("Server validation error:", errorData);
+        alert("Validation error: " + JSON.stringify(errorData));
         throw new Error("Failed to update patient");
       }
 
@@ -482,8 +493,8 @@ export default function PatientsPage() {
                     )
                   ) : (
                     availableSlots.map((slot, idx) => (
-                      <option key={idx} value={slot}>
-                        {slot}
+                      <option key={idx} value={slot.value}>
+                        {slot.display}
                       </option>
                     ))
                   )}
@@ -589,7 +600,7 @@ export default function PatientsPage() {
                       const globalIndex = indexOfFirstPatient + index + 1;
                       
                       return (
-                        <tr key={p.PatientID} className="hover:bg-blue-50 transition">
+                        <tr key={p._id} className="hover:bg-blue-50 transition">
                           <td className="px-4 py-3 text-xs text-gray-900">{globalIndex}</td>
                           <td className="px-4 py-3 text-xs font-medium text-gray-900">{p.FullName}</td>
                           <td className="px-4 py-3 text-xs text-gray-900">{p.Age}</td>
@@ -614,7 +625,7 @@ export default function PatientsPage() {
                               Edit
                             </button>
                             <button 
-                              onClick={() => deletePatient(p.PatientID)} 
+                              onClick={() => deletePatient(p._id)} 
                               className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition shadow text-xs font-medium"
                             >
                               Delete

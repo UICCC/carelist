@@ -2,7 +2,7 @@ const { body, param } = require("express-validator");
 
 const updatePatientRules = [
   param("id")
-    .isInt({ min: 1 }).withMessage("Patient ID must be a positive number"),
+    .isMongoId().withMessage("Invalid patient ID"), // use MongoDB _id
 
   body("FullName")
     .optional()
@@ -29,7 +29,11 @@ const updatePatientRules = [
   body("Gender")
     .optional()
     .isIn(["Male", "Female", "Other"])
-    .withMessage("Gender must be Male, Female, or Other")
+    .withMessage("Gender must be Male, Female, or Other"),
+
+  body("Doctor")
+    .optional()
+    .isMongoId().withMessage("Doctor must be a valid ID")
 ];
 
 module.exports = updatePatientRules;

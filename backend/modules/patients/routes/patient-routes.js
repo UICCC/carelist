@@ -10,26 +10,16 @@ const { verifyToken, requireRole } = require("../../auth/middlewares/auth-middle
 router.get("/", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     let patients;
-    console.log("GET /patients - User role:", req.user.role, "Email:", req.user.email);
-    
+
     if (req.user.role === "doctor") {
-      // Doctor only sees appointments assigned to their doctor record
-      // First, find the doctor record by matching email
       const Doctor = require("../../doctor/models/doctor-model");
       const doctorRecord = await Doctor.findOne({ Email: req.user.email });
-      
-      if (!doctorRecord) {
-        console.log("No doctor record found for email:", req.user.email);
-        return res.json([]); // Return empty if no doctor record
-      }
-      
+      if (!doctorRecord) return res.json([]);
       patients = await Patient.find({ Doctor: doctorRecord._id }).populate("Doctor");
-      console.log("Fetched", patients.length, "appointments for doctor:", doctorRecord.DoctorName);
     } else {
-      // Admin sees all
       patients = await Patient.find().populate("Doctor");
-      console.log("Fetched", patients.length, "total appointments for admin");
     }
+
     res.json(patients);
   } catch (err) {
     console.error("Error fetching patients:", err);
@@ -37,10 +27,10 @@ router.get("/", verifyToken, requireRole("admin", "doctor"), async (req, res) =>
   }
 });
 
-// GET patient by ID
+// GET patient by ID (using MongoDB _id)
 router.get("/:id", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
-    const patient = await Patient.findOne({ PatientID: Number(req.params.id) }).populate("Doctor");
+    const patient = await Patient.findById(req.params.id).populate("Doctor");
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
     if (req.user.role === "doctor" && String(patient.Doctor?._id) !== String(req.user.doctorId)) {
@@ -54,59 +44,66 @@ router.get("/:id", verifyToken, requireRole("admin", "doctor"), async (req, res)
   }
 });
 
-// POST new patient (Admin only)
+// POST new patient (Admin only) - PatientID will auto-increment
 router.post("/", verifyToken, requireRole("admin"), createPatientRules, checkValidation, async (req, res) => {
   try {
-    const lastPatient = await Patient.findOne().sort({ PatientID: -1 });
-    const newID = lastPatient ? lastPatient.PatientID + 1 : 1;
-
     const newPatient = new Patient({
-      PatientID: newID,
       status: "Pending",
       ...req.body
+      // PatientID will be automatically assigned by mongoose-sequence
     });
 
     await newPatient.save();
     res.status(201).json(newPatient);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to add patient" });
+    console.error("Error creating patient:", err);
+    res.status(500).json({ error: "Failed to add patient", details: err.message });
   }
 });
 
-// PUT update patient (Admin only)
+// PUT update patient (Admin only) - using MongoDB _id
 router.put("/:id", verifyToken, requireRole("admin"), updatePatientRules, checkValidation, async (req, res) => {
   try {
-    const updatedPatient = await Patient.findOneAndUpdate(
-      { PatientID: Number(req.params.id) },
-      req.body,
-      { new: true }
-    );
+    const updateData = { ...req.body };
+
+    // Convert Age to number if present
+    if (updateData.Age) updateData.Age = Number(updateData.Age);
+
+    // Ensure Doctor field is just the _id
+    if (updateData.Doctor && typeof updateData.Doctor === "object") {
+      updateData.Doctor = updateData.Doctor._id;
+    }
+
+    // Don't allow updating PatientID
+    delete updateData.PatientID;
+
+    const updatedPatient = await Patient.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate("Doctor");
+
     if (!updatedPatient) return res.status(404).json({ error: "Patient not found" });
+
     res.json(updatedPatient);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update patient" });
+    console.error("Update error:", err);
+    res.status(500).json({ error: "Failed to update patient", details: err.message });
   }
 });
 
-// PATCH status (Admin & Doctor)
+// PATCH status (Admin & Doctor) - using MongoDB _id
 router.patch("/:id/status", verifyToken, requireRole("admin", "doctor"), async (req, res) => {
   try {
     const { status } = req.body;
     if (!["Accepted", "Rejected"].includes(status)) return res.status(400).json({ error: "Invalid status" });
 
-    const patientID = Number(req.params.id);
-    if (isNaN(patientID)) {
-      return res.status(400).json({ error: "Invalid patient ID format" });
-    }
-
-    const patient = await Patient.findOne({ PatientID: patientID }).populate("Doctor");
+    const patient = await Patient.findById(req.params.id).populate("Doctor");
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    // Doctor can only update their own appointments
     if (req.user.role === "doctor") {
-      const doctorRecord = await require("../../doctor/models/doctor-model").findOne({ Email: req.user.email });
+      const Doctor = require("../../doctor/models/doctor-model");
+      const doctorRecord = await Doctor.findOne({ Email: req.user.email });
       if (!doctorRecord || String(patient.Doctor?._id) !== String(doctorRecord._id)) {
         return res.status(403).json({ error: "Access denied. Not your appointment." });
       }
@@ -121,10 +118,10 @@ router.patch("/:id/status", verifyToken, requireRole("admin", "doctor"), async (
   }
 });
 
-// DELETE patient (Admin only)
+// DELETE patient (Admin only) - using MongoDB _id
 router.delete("/:id", verifyToken, requireRole("admin"), async (req, res) => {
   try {
-    const deletedPatient = await Patient.findOneAndDelete({ PatientID: Number(req.params.id) });
+    const deletedPatient = await Patient.findByIdAndDelete(req.params.id);
     if (!deletedPatient) return res.status(404).json({ error: "Patient not found" });
     res.json({ message: "Patient deleted successfully" });
   } catch (err) {
